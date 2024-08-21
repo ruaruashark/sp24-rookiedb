@@ -146,25 +146,47 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.get.
     @Override
     public LeafNode get(DataBox key) {
-        // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
-        // TODO(proj2): implement
-
-        return null;
+        return this;
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
+        if (keys.contains(key)) {
+            throw new BPlusTreeException("A duplicate key is inserted");
+        }
+        int index = InnerNode.numLessThanEqual(key, keys);
+        keys.add(index, key);
+        rids.add(index, rid);
 
-        return Optional.empty();
+        if (this.keys.size() <= 2 * this.metadata.getOrder()) {
+            this.sync();
+            return Optional.empty();
+        } else {
+            List<DataBox> newKeys = new ArrayList<>();
+            List<RecordId> newRids = new ArrayList<>();
+            int d = this.metadata.getOrder();
+            for (int i = d; i < keys.size(); ++i) {
+                newKeys.add(keys.get(i));
+                newRids.add(rids.get(i));
+            }
+            for (int i = 0; i < d + 1; ++i) {
+                keys.remove(d);
+                rids.remove(d);
+            }
+
+            LeafNode newLeaf = new LeafNode(metadata, bufferManager, newKeys, newRids, rightSibling, treeContext);
+            rightSibling = Optional.of(newLeaf.page.getPageNum());
+            this.sync();
+            newLeaf.sync();
+            return Optional.of(new Pair<>(newKeys.get(0), newLeaf.page.getPageNum()));
+        }
     }
 
     // See BPlusNode.bulkLoad.
@@ -179,9 +201,10 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.remove.
     @Override
     public void remove(DataBox key) {
-        // TODO(proj2): implement
-
-        return;
+        int index = keys.indexOf(key);
+        keys.remove(index);
+        rids.remove(index);
+        sync();
     }
 
     // Iterators ///////////////////////////////////////////////////////////////
