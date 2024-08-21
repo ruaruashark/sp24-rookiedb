@@ -199,9 +199,11 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        if (root != null) {
+            return new BPlusTreeIterator(root.getLeftmostLeaf());
+        } else {
+            return Collections.emptyIterator();
+        }
     }
 
     /**
@@ -232,9 +234,11 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        if (root != null) {
+            return new BPlusTreeIterator(root.get(key), key);
+        } else {
+            return Collections.emptyIterator();
+        }
     }
 
     /**
@@ -311,9 +315,7 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): implement
-
-        return;
+        root.remove(key);
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
@@ -425,20 +427,36 @@ public class BPlusTree {
 
     // Iterator ////////////////////////////////////////////////////////////////
     private class BPlusTreeIterator implements Iterator<RecordId> {
-        // TODO(proj2): Add whatever fields and constructors you want here.
-
+        private LeafNode leaf;
+        private  List<RecordId> rids;
+        private int index;
+        public BPlusTreeIterator(LeafNode leafNode, DataBox key) {
+            leaf = leafNode;
+            rids = leafNode.getRids();
+            index = leafNode.getKeys().indexOf(key);
+        }
+        public BPlusTreeIterator(LeafNode leftMost) {
+            leaf = leftMost;
+            rids = leftMost.getRids();
+            index = 0;
+        }
         @Override
         public boolean hasNext() {
-            // TODO(proj2): implement
-
-            return false;
+            return (index < rids.size() || (leaf.getRightSibling().isPresent()));
         }
 
         @Override
         public RecordId next() {
-            // TODO(proj2): implement
-
-            throw new NoSuchElementException();
+            if (hasNext()) {
+                if (index == rids.size()) {
+                    index = 0;
+                    leaf = leaf.getRightSibling().get();
+                    rids = leaf.getRids();
+                }
+                return rids.get(index++);
+            } else {
+                throw new NoSuchElementException();
+            }
         }
     }
 }
