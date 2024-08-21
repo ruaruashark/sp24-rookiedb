@@ -135,8 +135,37 @@ class InnerNode extends BPlusNode {
     @Override
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
-        // TODO(proj2): implement
+        while (data.hasNext()) {
+            Optional<Pair<DataBox, Long>> returnNode = getChild(children.size() - 1).bulkLoad(data, fillFactor);
+            if (returnNode.isPresent()) {
+                keys.add(returnNode.get().getFirst());
+                children.add(returnNode.get().getSecond());
 
+                if (keys.size() > 2 * metadata.getOrder()) {
+                    List<DataBox> newKeys = new ArrayList<>();
+                    List<Long> newChildren = new ArrayList<>();
+                    int d = metadata.getOrder();
+                    for (int i = d + 1; i < keys.size(); i++) {
+                        newKeys.add(keys.get(i));
+                    }
+                    for (int i = d + 1; i < children.size(); i++) {
+                        newChildren.add(children.get(i));
+                    }
+                    for (int i = 0; i < d; ++i) {
+                        keys.remove(d + 1);
+                        children.remove(d + 1);
+                    }
+                    children.remove(d + 1);
+                    DataBox returnKey = keys.remove(d);
+
+                    InnerNode newNode = new InnerNode(metadata, bufferManager, newKeys, newChildren, treeContext);
+                    newNode.sync();
+                    this.sync();
+                    return Optional.of(new Pair<>(returnKey, newNode.page.getPageNum()));
+                }
+            }
+        }
+        this.sync();
         return Optional.empty();
     }
 
