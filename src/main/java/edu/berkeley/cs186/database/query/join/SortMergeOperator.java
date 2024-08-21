@@ -139,8 +139,50 @@ public class SortMergeOperator extends JoinOperator {
          * or null if there are no more records to join.
          */
         private Record fetchNextRecord() {
-            // TODO(proj3_part1): implement
-            return null;
+            while (true) {
+                if (leftRecord == null) {
+                    return null;
+                }
+
+                if (!marked) {
+                    while (compare(leftRecord, rightRecord) < 0 && leftIterator.hasNext()) {
+                        leftRecord = leftIterator.next();
+                    }
+                    while (compare(leftRecord, rightRecord) > 0 && rightIterator.hasNext()) {
+                        rightRecord = rightIterator.next();
+                    }
+                    rightIterator.markPrev();
+                    marked = true;
+                }
+
+                if (compare(leftRecord, rightRecord) == 0) {
+                    Record joinedRecord = leftRecord.concat(rightRecord);
+
+                    if (rightIterator.hasNext()) {
+                        rightRecord = rightIterator.next();
+                    } else {
+                        rightIterator.reset();
+                        rightRecord = rightIterator.next();
+                        if (leftIterator.hasNext()) {
+                            leftRecord = leftIterator.next();
+                            marked = false;
+                        } else {
+                            leftRecord = null;
+                        }
+                    }
+
+                    return joinedRecord;
+                } else {
+                    rightIterator.reset();
+                    rightRecord = rightIterator.next();
+                    if (leftIterator.hasNext()) {
+                        leftRecord = leftIterator.next();
+                        marked = false;
+                    } else {
+                        leftRecord = null;
+                    }
+                }
+            }
         }
 
         @Override
