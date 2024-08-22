@@ -686,8 +686,36 @@ public class ARIESRecoveryManager implements RecoveryManager {
      *   the pageLSN is checked, and the record is redone if needed.
      */
     void restartRedo() {
-        // TODO(proj5): implement
-        return;
+        if (dirtyPageTable.isEmpty()) {
+            return;
+        }
+        Long earliestLSN = Collections.min(dirtyPageTable.values());
+        Iterator<LogRecord> logRecords = logManager.scanFrom(earliestLSN);
+        while (logRecords.hasNext()) {
+            LogRecord logRecord = logRecords.next();
+            if (logRecord.isRedoable()) {
+                LogType logType = logRecord.type;
+                if (logType.equals(LogType.ALLOC_PART) || logType.equals(LogType.UNDO_ALLOC_PART) || logType.equals(LogType.FREE_PART) || logType.equals(LogType.UNDO_FREE_PART)) {
+                    logRecord.redo(this, diskSpaceManager, bufferManager);
+                } else if (logType.equals(LogType.ALLOC_PAGE) || logType.equals(LogType.UNDO_FREE_PAGE)) {
+                    logRecord.redo(this, diskSpaceManager, bufferManager);
+                } else if (logType.equals(LogType.UPDATE_PAGE) || logType.equals(LogType.UNDO_UPDATE_PAGE) || logType.equals(LogType.UNDO_ALLOC_PAGE) || logType.equals(LogType.FREE_PAGE)) {
+                    Long pageNum = logRecord.getPageNum().get();
+                    if (dirtyPageTable.containsKey(pageNum)) {
+                        if (logRecord.LSN >= dirtyPageTable.get(pageNum)) {
+                            Page page = bufferManager.fetchPage(new DummyLockContext(), pageNum);
+                            try {
+                                if (logRecord.LSN > page.getPageLSN()) {
+                                    logRecord.redo(this, diskSpaceManager, bufferManager);
+                                }
+                            } finally {
+                                page.unpin();
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
