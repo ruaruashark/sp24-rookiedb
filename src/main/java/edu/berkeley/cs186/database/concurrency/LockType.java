@@ -10,6 +10,13 @@ public enum LockType {
     IX,  // intention exclusive
     SIX, // shared intention exclusive
     NL;  // no lock held
+    private static final boolean[][] lockTypeMatrix= {
+            {true, true, true, true, false},
+            {true, true, false, false, false},
+            {true, false, true, false, false},
+            {true, false, false, false, false},
+            {false, false, false, false, false}
+    };
 
     /**
      * This method checks whether lock types A and B are compatible with
@@ -21,11 +28,30 @@ public enum LockType {
         if (a == null || b == null) {
             throw new NullPointerException("null lock type");
         }
-        // TODO(proj4_part1): implement
-
-        return false;
+        if (a.equals(NL) || b.equals(NL)) {
+            return true;
+        }
+        return lockTypeMatrix[getTypeIndex(a)][getTypeIndex(b)];
     }
 
+    private static int getTypeIndex(LockType type) {
+        if (type.equals(IS)) {
+            return 0;
+        }
+        if (type.equals(IX)) {
+            return 1;
+        }
+        if (type.equals(S)) {
+            return 2;
+        }
+        if (type.equals(SIX)) {
+            return 3;
+        }
+        if (type.equals(X)) {
+            return 4;
+        }
+        return -1;
+    }
     /**
      * This method returns the lock on the parent resource
      * that should be requested for a lock of type A to be granted.
@@ -53,9 +79,7 @@ public enum LockType {
         if (parentLockType == null || childLockType == null) {
             throw new NullPointerException("null lock type");
         }
-        // TODO(proj4_part1): implement
-
-        return false;
+        return substitutable(parentLockType, parentLock(childLockType));
     }
 
     /**
@@ -68,9 +92,19 @@ public enum LockType {
         if (required == null || substitute == null) {
             throw new NullPointerException("null lock type");
         }
-        // TODO(proj4_part1): implement
-
-        return false;
+        if (required == NL || required == substitute) {
+            return true;
+        } else if (required == S) {
+            return substitute == SIX || substitute == X;
+        } else if (required == IS) {
+            return substitute != NL;
+        } else if (required == IX) {
+            return substitute == SIX || substitute == X;
+        } else if (required == SIX) {
+            return substitute == X;
+        } else {
+            return false;
+        }
     }
 
     /**
