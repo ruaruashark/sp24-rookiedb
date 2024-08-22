@@ -41,9 +41,42 @@ public class LockUtil {
         LockType effectiveLockType = lockContext.getEffectiveLockType(transaction);
         LockType explicitLockType = lockContext.getExplicitLockType(transaction);
 
-        // TODO(proj4_part2): implement
-        return;
+        if (!LockType.substitutable(effectiveLockType, requestType) && !LockType.substitutable(explicitLockType, requestType)) {
+            if (requestType == LockType.NL) {
+                return;
+            }
+            ensureParentLockHeld(parentContext, LockType.parentLock(requestType), transaction);
+            if (explicitLockType.equals(LockType.IX) && requestType.equals(LockType.S)) {
+                lockContext.promote(transaction, LockType.SIX);
+            } else if (explicitLockType.isIntent()) {
+                lockContext.escalate(transaction);
+            } else {
+                if (explicitLockType.equals(LockType.NL)) {
+                    lockContext.acquire(transaction, requestType);
+                } else {
+                    lockContext.promote(transaction, requestType);
+                }
+            }
+        }
     }
 
-    // TODO(proj4_part2) add any helper methods you want
+    public static void ensureParentLockHeld(LockContext parentContext, LockType requestType, TransactionContext transaction) {
+        if (parentContext == null || requestType.equals(LockType.NL)) {
+            return;
+        }
+        LockType effectiveType = parentContext.getEffectiveLockType(transaction);
+        LockType explicitType = parentContext.getExplicitLockType(transaction);
+        if (requestType.equals(LockType.IX) && explicitType.equals(LockType.S)) {
+            requestType = LockType.SIX;
+        }
+        if (LockType.substitutable(explicitType, requestType) || LockType.substitutable(effectiveType, requestType)) {
+            return;
+        }
+        ensureParentLockHeld(parentContext.parentContext(), LockType.parentLock(requestType), transaction);
+        if (explicitType.equals(LockType.NL)) {
+            parentContext.acquire(transaction, requestType);
+        } else {
+            parentContext.promote(transaction, requestType);
+        }
+    }
 }
