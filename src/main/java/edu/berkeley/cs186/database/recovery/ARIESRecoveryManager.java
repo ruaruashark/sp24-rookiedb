@@ -237,8 +237,13 @@ public class ARIESRecoveryManager implements RecoveryManager {
                              byte[] after) {
         assert (before.length == after.length);
         assert (before.length <= BufferManager.EFFECTIVE_PAGE_SIZE / 2);
-        // TODO(proj5): implement
-        return -1L;
+        
+        TransactionTableEntry transactionEntry = transactionTable.get(transNum);
+        LogRecord pageWriteLog = new UpdatePageLogRecord(transNum, pageNum, transactionEntry.lastLSN, pageOffset, before, after);
+        long logLSN = logManager.appendToLog(pageWriteLog);
+        transactionEntry.lastLSN = logLSN;
+        dirtyPageTable.putIfAbsent(pageNum, logLSN);
+        return logLSN;
     }
 
     /**
