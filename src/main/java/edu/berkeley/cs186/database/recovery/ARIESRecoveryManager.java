@@ -732,8 +732,41 @@ public class ARIESRecoveryManager implements RecoveryManager {
      *   and remove from transaction table.
      */
     void restartUndo() {
-        // TODO(proj5): implement
-        return;
+        PriorityQueue<Pair<Long, TransactionTableEntry>> tnxQueue = new PriorityQueue<>(new PairFirstReverseComparator<>());
+        for (Map.Entry<Long, TransactionTableEntry> entry : transactionTable.entrySet()) {
+            if (entry.getValue().transaction.getStatus().equals(Transaction.Status.RECOVERY_ABORTING)) {
+                LogRecord logRecord = logManager.fetchLogRecord(entry.getValue().lastLSN);
+                if (logRecord.getUndoNextLSN().isPresent()) {
+                    tnxQueue.add(new Pair<>(logRecord.getUndoNextLSN().get(), entry.getValue()));
+                } else {
+                    tnxQueue.add(new Pair<>(entry.getValue().lastLSN, entry.getValue()));
+                }
+            }
+        }
+
+        while (!tnxQueue.isEmpty()) {
+            Pair<Long, TransactionTableEntry> entryPair = tnxQueue.poll();
+            LogRecord logRecord = logManager.fetchLogRecord(entryPair.getFirst());
+
+            if (logRecord.isUndoable()) {
+                LogRecord undoRecord = logRecord.undo(entryPair.getSecond().lastLSN);
+                long undoLSN = logManager.appendToLog(undoRecord);
+                entryPair.getSecond().lastLSN = undoLSN;
+                undoRecord.redo(this, diskSpaceManager, bufferManager);
+                if (undoRecord.type.equals(LogType.UNDO_ALLOC_PAGE)) {
+                    logManager.flushToLSN(undoLSN);
+                }
+            }
+            if (logRecord.getPrevLSN().get() != 0L) {
+                tnxQueue.add(new Pair<>(logRecord.getPrevLSN().get(), entryPair.getSecond()));
+            } else {
+                entryPair.getSecond().transaction.cleanup();
+                entryPair.getSecond().transaction.setStatus(Transaction.Status.COMPLETE);
+                LogRecord endRecord = new EndTransactionLogRecord(entryPair.getSecond().transaction.getTransNum(), entryPair.getSecond().lastLSN);
+                logManager.appendToLog(endRecord);
+                transactionTable.remove(entryPair.getSecond().transaction.getTransNum());
+            }
+        }
     }
 
     /**
