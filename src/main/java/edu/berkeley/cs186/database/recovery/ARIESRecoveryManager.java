@@ -443,7 +443,39 @@ public class ARIESRecoveryManager implements RecoveryManager {
         Map<Long, Long> chkptDPT = new HashMap<>();
         Map<Long, Pair<Transaction.Status, Long>> chkptTxnTable = new HashMap<>();
 
-        // TODO(proj5): generate end checkpoint record(s) for DPT and transaction table
+        Iterator<Long> dptIterator = dirtyPageTable.keySet().iterator();
+        Iterator<Long> txnIterator = transactionTable.keySet().iterator();
+        while (dptIterator.hasNext() || txnIterator.hasNext()) {
+            int numDPTRecords = 0;
+            int numTxnTableRecords = 0;
+            boolean ableToAdd = true;
+            while (ableToAdd) {
+                if (dptIterator.hasNext()) {
+                    Long pageNum = dptIterator.next();
+                    chkptDPT.put(pageNum, dirtyPageTable.get(pageNum));
+                    numDPTRecords++;
+                } else if (txnIterator.hasNext()) {
+                    Long txnNum = txnIterator.next();
+                    TransactionTableEntry txnEntry = transactionTable.get(txnNum);
+                    chkptTxnTable.put(txnNum, new Pair<>(txnEntry.transaction.getStatus(), txnEntry.lastLSN));
+                    numTxnTableRecords++;
+                } else {
+                    break;
+                }
+                if (dptIterator.hasNext()) {
+                    ableToAdd = EndCheckpointLogRecord.fitsInOneRecord(numDPTRecords + 1, numTxnTableRecords);
+                } else {
+                    ableToAdd = EndCheckpointLogRecord.fitsInOneRecord(numDPTRecords, numTxnTableRecords + 1);
+                }
+            }
+            if (!txnIterator.hasNext()) {
+                break;
+            }
+            LogRecord endRecord = new EndCheckpointLogRecord(chkptDPT, chkptTxnTable);
+            logManager.appendToLog(endRecord);
+            chkptDPT = new HashMap<>();
+            chkptTxnTable = new HashMap<>();
+        }
 
         // Last end checkpoint record
         LogRecord endRecord = new EndCheckpointLogRecord(chkptDPT, chkptTxnTable);
